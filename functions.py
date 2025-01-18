@@ -16,7 +16,7 @@ class RedditScrapper:
         )
 
     def scrape_and_filter(self, subreddit_name, therapy, question_keywords, inclusion_keywords, exclusion_keywords,
-                          limit, output_file, save_every=50):
+                          limit, output_file, save_every, limit_comment):
         results = []
         subreddit = self.reddit.subreddit(subreddit_name)
         fetched_posts = 0
@@ -46,7 +46,7 @@ class RedditScrapper:
         while len(results) < limit:
             try:
                 search_results = subreddit.search(
-                    therapy, limit=2, time_filter='year', params={"after": after}
+                    therapy, limit=20, time_filter='year', params={"after": after}
                 )
                 search_results = list(search_results)  # Convert ListingGenerator to list
                 print(f"Fetched {len(search_results)} posts in this batch.")
@@ -70,7 +70,7 @@ class RedditScrapper:
 
                     if is_question_post:
                         # Process only the first 5 comments
-                        post.comments.replace_more(limit=10)
+                        post.comments.replace_more(limit=limit_comment)
                         for comment in post.comments[:100]:
                             if (
                                     comment.id not in processed_ids and  # Check for duplicates

@@ -38,13 +38,13 @@ if __name__ == "__main__":
         rf"(it|{therapy}) (saved|changed|traumatized|retraumatized|made a difference|did nothing|does not work)",
         r"(life (changing|saving)|recommend)",
         r"I[' ]?(felt|have experienced|am finding|worked|works|tried|have taken it)",
-        rf"during the {therapy}"
+        rf"during the {therapy}", r"\b(I|me|my|mine|we|our|us|ours)\b"
     ]
 
     exclusion_keywords = [
         rf"I[' ]?am a therapist", rf"{therapy} therapist here", r"coming from a board[-]?certified", r"my clients",
-        r"I[' ]?m ineligible", r"I did (DBT|CBT|other therapies)", r"have you found",
-        r"someone who did it", r"not a problem for me", r"(tapping|research)", r"^How.*\?$",
+        r"I[' ]?m ineligible", r"I did (DBT|CBT|other therapies)", r"have you found", "consultant here",
+        r"someone who did it", r"not a problem for me", r"(tapping|research)", r"^How.*\?$", "has generated this automated"
     ]
 
     output_file = f"incremental_{therapy}_results.csv"
@@ -56,9 +56,10 @@ if __name__ == "__main__":
         inclusion_keywords=inclusion_keywords,
         question_keywords=question_keywords,
         exclusion_keywords=exclusion_keywords,
-        limit=500,  # Specify the number of rows you want in the final CSV
+        limit=1000,  # Specify the number of rows you want in the final CSV
         output_file = output_file,
-        save_every=50
+        save_every=50,
+        limit_comment=None
     )
 
 
