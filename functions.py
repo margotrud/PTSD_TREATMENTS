@@ -109,7 +109,7 @@ class RedditScrapper:
                     break
 
                 # Log progress every 10 posts
-                if fetched_posts % 10 == 0:
+                if fetched_posts % save_every == 0:
                     print(f"Processed {fetched_posts} posts, retained {len(results)} results...")
 
                 # Break the loop if we have enough results
@@ -122,7 +122,7 @@ class RedditScrapper:
                 continue
 
         print(f"Final save: {len(results[:limit])} records written to {output_file}")
-        return pd.DataFrame(results)
+        return pd.DataFrame(results[:limit])
 
     def save_to_csv(self, data, filename):
         data.to_csv(filename, index=False)

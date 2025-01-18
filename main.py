@@ -61,8 +61,5 @@ if __name__ == "__main__":
         save_every=50
     )
 
-    # Save filtered data to a CSV file
-    output_file = f"{therapy}_filtered_results.csv"
-    scrapper.save_to_csv(filtered_data, output_file)
 
 
