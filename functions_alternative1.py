@@ -5,30 +5,6 @@ import time
 import os
 import re
 
-
-
-# ✅ First-hand experience regex (allows indirect mentions)
-first_hand_experience_regex = re.compile(
-    r"\b(I (tried|started|completed|did|went through|had) (EMDR|it)|"
-    r"after (X sessions|doing|my) (EMDR|it)|"
-    r"during my (EMDR|it) (session|therapy)|"
-    r"my (EMDR )?(therapist|session|experience|treatment)|"
-    r"(EMDR|it) (helped|changed|made me feel|worked for) me)\b",
-    re.IGNORECASE
-)
-
-# ❌ Exclude indirect mentions that do not describe personal experience
-indirect_mentions_regex = re.compile(
-    r"\b(my friend|people say|I've read|my therapist recommended|I heard about|considering EMDR|thinking about (EMDR|it)|"
-    r"haven’t (started|done) (EMDR|it)|not sure if I will do (EMDR|it)|scared to try (EMDR|it)|wondering about (EMDR|it)|trauma therapy)\b",
-    re.IGNORECASE
-)
-
-non_emdr_therapy_regex = re.compile(
-    r"\b(?!EMDR )(?:[\w\s]+ therapy)\b",  # Matches any phrase ending in "therapy" EXCEPT "EMDR therapy"
-    re.IGNORECASE
-)
-
 class RedditAPI:
     """Handles Reddit authentication and data retrieval using PRAW."""
 
@@ -46,7 +22,6 @@ class RedditAPI:
         )
         return search_results
 
-
 class TextClassifier:
     """Uses Hugging Face's Zero-Shot Classification to identify personal EMDR experiences in posts and comments."""
 
@@ -55,81 +30,136 @@ class TextClassifier:
         self.classifier = pipeline('zero-shot-classification', model="facebook/bart-large-mnli")
         self.labels = ['personal experience', 'theoretical discussion', 'testimony', 'question', 'opinion']
 
-    # def classify_post(self, text):
-    #     """Classifies a Reddit post using NLP to detect personal EMDR experiences."""
-    #     result = self.classifier(text, candidate_labels=self.labels)
-    #     return result['labels'][0]  # Return the most likely classification
-
     def classify_post(self, text):
         """Classifies a Reddit post using regex for first-hand EMDR experiences."""
         result = self.classifier(text, candidate_labels=self.labels)
         top_label = result['labels'][0]
 
-        # ✅ First-hand EMDR experience detection
-        if first_hand_experience_regex.search(text) and not indirect_mentions_regex.search(text):
-            return "personal experience"
-
-        return top_label  # Default to NLP classification
-
-    # def classify_comment(self, text):
-    #     """Classifies a Reddit comment using NLP to detect implicit EMDR experiences."""
-    #     result = self.classifier(text, candidate_labels=self.labels)
-    #     top_label = result['labels'][0]  # Most likely classification
-    #
-    #     # ✅ If the classifier already detects personal experience, return it
-    #     if top_label in ['personal experience', 'testimony']:
-    #         return top_label
-    #
-    #     # ✅ Fallback: Check for common testimony phrases
-    #     experience_keywords = [
-    #         "it didn't help me", "i tried emdr", "my experience with emdr", "i did emdr", "i had a session",
-    #         "my emdr journey", "after emdr therapy", "i went through emdr", "i started emdr", "i have done emdr"
-    #     ]
-    #     if any(keyword in text.lower() for keyword in experience_keywords):
-    #         return "personal experience"
-    #
-    #     return top_label  # Default to NLP classification
-
-    import re
-
-    def classify_comment(self, text, parent_post_text=None):
-        """
-        Classifies a Reddit comment while rejecting mentions of non-EMDR therapies.
-        - ✅ Approves first-hand EMDR experiences.
-        - ❌ Rejects third-party stories, supportive messages, bot messages.
-        - ❌ Rejects mentions of other therapies (e.g., "CBT therapy") unless it's "EMDR therapy."
-        """
-
-        result = self.classifier(text, candidate_labels=self.labels)
-        top_label = result['labels'][0]  # Most likely classification
-
-        text_lower = text.lower()
-
-        # ✅ First-hand EMDR experience detection
         first_hand_experience_regex = re.compile(
             r"\b(I (tried|started|completed|did|went through|had) EMDR|"
-            r"after (X sessions|doing|my) EMDR|"
+            r"after (\d+ sessions|doing|my) EMDR|"
             r"during my (EMDR|it) (session|therapy)|"
             r"my (EMDR )?(therapist|session|experience|treatment)|"
-            r"(EMDR|it) (was life changing|was a waste of time|helped|changed|made me feel|worked for) me)\b",
+            r"(EMDR|it) (was (life changing|a waste of time|intense|helpful|too much for me|worth it|tough)|"
+            r"helped|changed|made me feel|worked for) me|"
+            r"EMDR was (amazing|horrible|really hard|so intense|so worth it|difficult at first))\b",
             re.IGNORECASE
         )
 
-        # ❌ Exclude non-EMDR therapy mentions
-        non_emdr_therapy_regex = re.compile(
-            r"\b(?!EMDR )(?:[\w\s]+ therapy)\b",  # Matches any phrase ending in "therapy" EXCEPT "EMDR therapy"
+        #Regex to reject indirect mentions
+        undecided_or_third_party_regex = re.compile(
+            r"\b(thinking about EMDR|considering EMDR|scared to try EMDR|not sure if I will do EMDR|"
+            r"haven’t started EMDR|was recommended EMDR|was supposed to do EMDR but|"
+            r"was told EMDR wouldn’t work for me|my therapist denied me EMDR|"
+            r"never actually started EMDR|my friend did EMDR|someone I know did EMDR|"
+            r"I plan to do EMDR|I'm waiting to try EMDR|I might do EMDR in the future|"
+            r"I'm preparing for EMDR|I decided not to do EMDR)\b"
+            r"\b(too unwell for EMDR|not ready for EMDR|therapist refused EMDR|"
+            r"not stable enough for EMDR|my therapist denied me EMDR)\b"
+            r"\b(denied EMDR|refused EMDR|not allowed to do EMDR|was not approved for EMDR|"
+            r"not stable enough for EMDR|told I can't do EMDR|not a candidate for EMDR)\b"
+            r"\b(planning to do EMDR|thinking about trying EMDR|considering EMDR|scared to try EMDR|"
+            r"haven’t started EMDR yet|waiting to start EMDR|preparing for EMDR)\b"
+            r"couldn't start EMDR|my therapist stopped EMDR before it started|"
+            r"\b(EMDR was not an option for me)\b"
+            r"\b(scared to try EMDR|not sure about EMDR|not everyone is a candidate for EMDR|"
+            r"thinking about doing EMDR|wondering if EMDR is right for me|"
+            r"glad I was refused EMDR|I may try EMDR one day)\b"
+
+            ,
             re.IGNORECASE
         )
 
-        # ❌ Reject if discussing a non-EMDR therapy
-        if non_emdr_therapy_regex.search(text_lower):
-            return "non_emdr_therapy"
+        # Reject indirect mentions
+        if undecided_or_third_party_regex.search(text):
+            return "indirect_reference"
 
-        # ✅ Approve if EMDR is explicitly mentioned and the user describes an experience
-        if "emdr" in text_lower and first_hand_experience_regex.search(text_lower):
+        # Approve if regex confirms firsthand experience
+        if first_hand_experience_regex.search(text):
             return "personal experience"
 
-        return top_label  # Default to NLP classification
+        # If classified as testimony but regex does NOT match, mark it as uncertain
+        if top_label == "testimony":
+            return "uncertain testimony"
+
+        return top_label
+
+    def log_false_positives(self, text, classification, url=None):
+        """Log false positives for further analysis."""
+        with open("false_positive_log.txt", "a", encoding="utf-8") as f:
+            f.write(f"Classified as: {classification} | Text: {text[:200]} | URL: {url if url else 'No URL'}\n")
+
+    def classify_comment(self, text, parent_post_text=None):
+        """Classifies a Reddit comment based on explicit or implicit mention of the author's EMDR experience."""
+        text_lower = text.lower()
+
+        undecided_or_third_party_regex = re.compile(
+            r"\b(thinking about EMDR|considering EMDR|scared to try EMDR|not sure if I will do EMDR|"
+            r"haven’t started EMDR|was recommended EMDR|was supposed to do EMDR but|"
+            r"was told EMDR wouldn’t work for me|my therapist denied me EMDR|"
+            r"never actually started EMDR|my friend did EMDR|someone I know did EMDR|"
+            r"I plan to do EMDR|I'm waiting to try EMDR|I might do EMDR in the future|"
+            r"I'm preparing for EMDR|I decided not to do EMDR)\b"
+            r"\b(too unwell for EMDR|not ready for EMDR|therapist refused EMDR|"
+            r"not stable enough for EMDR|my therapist denied me EMDR)\b"
+            r"\b(denied EMDR|refused EMDR|not allowed to do EMDR|was not approved for EMDR|"
+            r"not stable enough for EMDR|told I can't do EMDR|not a candidate for EMDR)\b"
+            r"\b(planning to do EMDR|thinking about trying EMDR|considering EMDR|scared to try EMDR|"
+            r"haven’t started EMDR yet|waiting to start EMDR|preparing for EMDR"
+            r"couldn't start EMDR|my therapist stopped EMDR before it started|"
+            r"EMDR was not an option for me)\b"
+            r"\b(scared to try EMDR|not sure about EMDR|not everyone is a candidate for EMDR|"
+            r"thinking about doing EMDR|wondering if EMDR is right for me|"
+            r"glad I was refused EMDR|I may try EMDR one day)\b"
+
+            ,
+            re.IGNORECASE
+        )
+
+        congratulatory_regex = re.compile(
+            r"\b(congratulations|so happy for you|proud of you|great job|you’re amazing|well done|"
+            r"thank you for sharing|that’s inspiring|sending good vibes|wishing you well|"
+            r"happy to hear this|that’s wonderful news|good to know|best of luck)\b"
+            r"best of luck|gives me hope|brilliant! enjoy your freedom|"
+            r"glad to hear this|cheers to your recovery|"
+            r"\b(best wishes on your journey|you're strong)\b"
+            ,
+
+            re.IGNORECASE
+        )
+
+        other_therapy_regex = re.compile(
+            r"\b(DBT|CBT|ART|IFS|somatic therapy|talk therapy|exposure therapy)\b",
+            re.IGNORECASE
+        )
+        if undecided_or_third_party_regex.search(text_lower):
+            return "indirect_reference"
+
+        if congratulatory_regex.search(text_lower):
+            return "congratulatory_message"
+
+
+
+        result = self.classifier(text, candidate_labels=self.labels)
+        top_label = result['labels'][0]
+
+        first_hand_experience_regex = re.compile(
+            r"\b(I|my|me).*?(tried|started|completed|did|went through|had).*?EMDR\b",
+            re.IGNORECASE
+        )
+
+        has_personal_experience = first_hand_experience_regex.search(text_lower) is not None
+        if other_therapy_regex.search(text_lower) and not first_hand_experience_regex.search(text_lower):
+            return "generic_therapy_discussion"
+
+        if has_personal_experience:
+            return "personal experience"
+
+        if top_label in ["testimony", "opinion"] and not has_personal_experience:
+            self.log_false_positives(text, top_label)
+
+        return top_label
+
 
     def is_related_to_emdr(self, text):
         """Checks if the text is related to EMDR even if 'EMDR' is not explicitly mentioned."""
@@ -168,6 +198,8 @@ class RedditExperienceScraper:
             # ✅ Store approved comments
             if classification in ['personal experience', 'testimony']:
                 entry = ["(From Question)", "(No Post Saved)", "testimony", comment.body, post.url, post.created_utc]
+                while len(entry) < 6:
+                    entry.append("N/A")  # Add missing values
                 self.data.append(entry)
 
             # ❌ Store denied comments
@@ -212,8 +244,9 @@ class RedditExperienceScraper:
                 if post_is_emdr_experience:
                     self.get_comments(post, post_is_emdr_experience, post_is_question)  # Pass to get_comments
 
-                    entry = [post.title, post.selftext, classification, post.url, post.created_utc]
+                    entry = [post.title, post.selftext, classification, "(No Comments)", post.url, post.created_utc]
                     self.data.append(entry)
+
 
                 # ❌ Store denied post
                 else:
@@ -229,35 +262,34 @@ class RedditExperienceScraper:
             print(f"🎉 Final save complete! Approved: {len(self.data)}, Denied: {len(self.denied_data)}")
             self.save_to_csv()
 
+
     import os
 
     def save_to_csv(self):
         """Save both approved & denied entries to separate CSV files, appending to existing files."""
 
+        print(
+            f"✅ Checking Data Structure: Expected 6 columns, but found {[len(row) for row in self.data]}")  # Debugging step
+
+        # Ensure every row has exactly 6 elements before saving
+        cleaned_data = []
+        for row in self.data:
+            if len(row) < 6:
+                print("⚠️ Fixing Row with Incorrect Length:", row)
+                while len(row) < 6:
+                    row.append("N/A")  # Fill missing fields
+            elif len(row) > 6:
+                print("⚠️ Removing Extra Columns from Row:", row)
+                row = row[:6]  # Trim extra columns
+            cleaned_data.append(row)
+
         # ✅ Save Approved Entries
-        if self.data:
+        if cleaned_data:
             filename_approved = "approved_reddit_emdr_experiences.csv"
-            df_approved = pd.DataFrame(self.data,
-                                       columns=["Title", "Body", "Classification", "Comments", "URL", "Timestamp"])
-
-            # ✅ Append to existing file without overwriting
-            if os.path.exists(filename_approved):
+            try:
+                df_approved = pd.DataFrame(cleaned_data,
+                                           columns=["Title", "Body", "Classification", "Comments", "URL", "Timestamp"])
                 df_approved.to_csv(filename_approved, mode='a', header=False, index=False, encoding="utf-8")
-            else:
-                df_approved.to_csv(filename_approved, mode='w', header=True, index=False, encoding="utf-8")
-
-            print(f"✅ Appended {len(df_approved)} approved entries to {filename_approved}")
-
-        # ✅ Save Denied Entries
-        if self.denied_data:
-            filename_denied = "denied_reddit_entries.csv"
-            df_denied = pd.DataFrame(self.denied_data,
-                                     columns=["Type", "Classification", "Title/Body", "URL", "Timestamp"])
-
-            # ✅ Append to existing file without overwriting
-            if os.path.exists(filename_denied):
-                df_denied.to_csv(filename_denied, mode='a', header=False, index=False, encoding="utf-8")
-            else:
-                df_denied.to_csv(filename_denied, mode='w', header=True, index=False, encoding="utf-8")
-
-            print(f"❌ Appended {len(df_denied)} denied entries to {filename_denied}")
+                print(f"✅ Appended {len(df_approved)} approved entries to {filename_approved}")
+            except ValueError as e:
+                print("❌ DataFrame Creation Error:", e)

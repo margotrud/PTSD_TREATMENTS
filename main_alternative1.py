@@ -15,5 +15,5 @@ if __name__ == "__main__":
 
     # Initialize and run the scraper
     scraper = RedditExperienceScraper(client_id, client_secret, user_agent)
-    scraper.scrape_and_filter_posts(search_term="EMDR", limit=100, time_filter='year')
+    scraper.scrape_and_filter_posts(search_term="EMDR", limit=200, time_filter='year')
     scraper.save_to_csv()
